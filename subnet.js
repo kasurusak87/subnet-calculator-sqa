@@ -41,168 +41,12 @@ function intToBin(n) {
 }
 
 /**
- * Validate an IPv4 address string.
- * @param {string} ip
- * @returns {boolean}
- */
-function isValidIP(ip) {
-  const parts = ip.trim().split('.');
-  if (parts.length !== 4) return false;
-  return parts.every(p => /^\d+$/.test(p) && +p >= 0 && +p <= 255);
-}
-
-/**
- * Determine the IP address class (A/B/C/D/E).
- * @param {number} ipInt  32-bit unsigned integer
- * @returns {string}
- */
-function getIPClass(ipInt) {
-  const first = (ipInt >>> 24) & 0xff;
-  if (first < 128)  return 'A';
-  if (first < 192)  return 'B';
-  if (first < 224)  return 'C';
-  if (first < 240)  return 'D (Multicast)';
-  return 'E (Reserved)';
-}
-
-/**
- * Determine whether an IP is private (RFC 1918) or public.
- * @param {number} ipInt  32-bit unsigned integer
- * @returns {string}
- */
-function getNetworkType(ipInt) {
-  const first  = (ipInt >>> 24) & 0xff;
-  const second = (ipInt >>> 16) & 0xff;
-
-  if (first === 10) return 'Private (RFC 1918)';
-  if (first === 172 && second >= 16 && second <= 31) return 'Private (RFC 1918)';
-  if (first === 192 && second === 168) return 'Private (RFC 1918)';
-  if (first === 127) return 'Loopback';
-  if (first === 169 && second === 254) return 'Link-local (APIPA)';
-  return 'Public';
-}
-
-/**
  * Format a large number with thousand-separator.
  * @param {number} n
  * @returns {string}
  */
 function fmt(n) {
-  return n.toLocaleString('id-ID');
-}
-
-// ── Main Calculator ───────────────────────────
-
-function calculate() {
-  const ipInput     = document.getElementById('ip');
-  const prefixInput = document.getElementById('prefix');
-  const errorEl     = document.getElementById('error-msg');
-  const resultSec   = document.getElementById('result-section');
-
-  const ip     = ipInput.value.trim();
-  const prefix = parseInt(prefixInput.value.trim(), 10);
-
-  // ── Reset UI ──
-  ipInput.classList.remove('invalid');
-  document.querySelector('.prefix-input-wrap').classList.remove('invalid');
-  errorEl.classList.add('hidden');
-  errorEl.textContent = '';
-
-  // ── Validation ──
-  let errors = [];
-  if (!isValidIP(ip)) {
-    ipInput.classList.add('invalid');
-    errors.push('Alamat IP tidak valid. Pastikan format xxx.xxx.xxx.xxx dan setiap oktet 0–255.');
-  }
-  if (isNaN(prefix) || prefix < 0 || prefix > 32) {
-    document.querySelector('.prefix-input-wrap').classList.add('invalid');
-    errors.push('Prefix tidak valid. Gunakan nilai antara 0 sampai 32.');
-  }
-  if (errors.length) {
-    errorEl.textContent = errors[0];
-    errorEl.classList.remove('hidden');
-    resultSec.classList.add('hidden');
-    return;
-  }
-
-  // ── Core Calculation ──
-  const ipInt       = ipToInt(ip);
-
-  // Build subnet mask: prefix 1-bits from the left, rest 0
-  const maskInt     = prefix === 0
-    ? 0
-    : (0xffffffff << (32 - prefix)) >>> 0;
-
-  const wildcardInt = (~maskInt) >>> 0;
-  const networkInt  = (ipInt & maskInt) >>> 0;
-  const broadcastInt = (networkInt | wildcardInt) >>> 0;
-
-  // Total addresses in the block
-  const totalAddresses = Math.pow(2, 32 - prefix);
-
-  // Usable hosts: subtract network + broadcast, but guard edge cases
-  let usableHosts = totalAddresses - 2;
-  let firstHostInt, lastHostInt;
-
-  if (prefix === 32) {
-    // /32 → host route: single host, no network/broadcast distinction
-    usableHosts  = 1;
-    firstHostInt = networkInt;
-    lastHostInt  = networkInt;
-  } else if (prefix === 31) {
-    // /31 (RFC 3021) → 2 usable hosts (point-to-point links)
-    usableHosts  = 2;
-    firstHostInt = networkInt;
-    lastHostInt  = broadcastInt;
-  } else {
-    firstHostInt = (networkInt + 1) >>> 0;
-    lastHostInt  = (broadcastInt - 1) >>> 0;
-  }
-
-  const ipClass    = getIPClass(networkInt);
-  const netType    = getNetworkType(ipInt);
-
-  // ── Populate Summary Cards ──
-  set('res-network',   intToIP(networkInt));
-  set('res-cidr',      `/${prefix}  •  Mask: ${intToIP(maskInt)}`);
-  set('res-broadcast', intToIP(broadcastInt));
-  set('res-broadcast-bin', intToBin(broadcastInt));
-
-  if (prefix === 32) {
-    set('res-range', intToIP(firstHostInt));
-    set('res-range-sub', 'Host route (/32)');
-  } else if (prefix === 31) {
-    set('res-range', `${intToIP(firstHostInt)} – ${intToIP(lastHostInt)}`);
-    set('res-range-sub', 'Point-to-point (RFC 3021)');
-  } else {
-    set('res-range', `${intToIP(firstHostInt)} – ${intToIP(lastHostInt)}`);
-    set('res-range-sub', `${fmt(usableHosts)} alamat tersedia`);
-  }
-
-  set('res-hosts',     fmt(usableHosts));
-  set('res-hosts-sub', `dari ${fmt(totalAddresses)} total alamat`);
-
-  // ── Populate Detail Table ──
-  set('d-mask',    intToIP(maskInt));
-  set('d-wildcard',intToIP(wildcardInt));
-  set('d-ip-dec',  String(ipInt >>> 0));
-  set('d-net',     `${intToIP(networkInt)} /${prefix}`);
-  set('d-bcast',   intToIP(broadcastInt));
-  set('d-first',   prefix === 32 ? '(host route)' : intToIP(firstHostInt));
-  set('d-last',    prefix === 32 ? '(host route)' : intToIP(lastHostInt));
-  set('d-usable',  fmt(usableHosts) + ' host');
-  set('d-class',   ipClass);
-  set('d-type',    netType);
-
-  // ── Binary Representations ──
-  set('bin-ip',    intToBin(ipInt));
-  set('bin-mask',  intToBin(maskInt));
-  set('bin-net',   intToBin(networkInt));
-  set('bin-bcast', intToBin(broadcastInt));
-
-  // ── Show results ──
-  resultSec.classList.remove('hidden');
-  resultSec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  return typeof n === 'number' ? n.toLocaleString('id-ID') : n;
 }
 
 /** Shorthand setter */
@@ -211,6 +55,7 @@ function set(id, text) {
   if (el) el.textContent = text;
 }
 
+// ── Tab Navigation ────────────────────────────
 function switchMode(mode) {
   const tabSubnet = document.getElementById('tab-subnet');
   const tabVlsm = document.getElementById('tab-vlsm');
@@ -233,24 +78,116 @@ function switchMode(mode) {
   }
 }
 
+// ── Main Calculator (Connected to FastAPI /api/subnet) ──
+async function calculate() {
+  const ipInput = document.getElementById('ip');
+  const prefixInput = document.getElementById('prefix');
+  const errorBanner = document.getElementById('error-banner');
+  const errorText = document.getElementById('error-text');
+  const resultSec = document.getElementById('subnet-result-section');
+
+  const ip = ipInput.value.trim();
+  const prefix = prefixInput.value.trim();
+
+  // Reset UI status
+  if (errorBanner) errorBanner.classList.add('hidden');
+  ipInput.classList.remove('invalid');
+  const prefixWrap = document.querySelector('.prefix-input-wrap');
+  if (prefixWrap) prefixWrap.classList.remove('invalid');
+
+  try {
+    const url = `/api/subnet?ip=${encodeURIComponent(ip)}&prefix=${encodeURIComponent(prefix)}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (!response.ok) {
+      // Tampilkan pesan error langsung dari field "detail" yang dikirim backend
+      if (errorBanner && errorText) {
+        errorText.textContent = data.detail || 'Terjadi kesalahan saat memproses perhitungan.';
+        errorBanner.classList.remove('hidden');
+      }
+      if (resultSec) resultSec.classList.add('hidden');
+      return;
+    }
+
+    // Sembunyikan error dan tampilkan hasil
+    if (errorBanner) errorBanner.classList.add('hidden');
+
+    const prefixNum = parseInt(prefix, 10);
+
+    // Kartu Metrik Ringkasan
+    set('res-network', data.network);
+    set('res-cidr', `/${prefixNum}  •  Mask: ${data.mask}`);
+    set('res-broadcast', data.broadcast !== null ? data.broadcast : 'None (RFC 3021 / 32)');
+    set('res-broadcast-sub', data.broadcast !== null ? 'Broadcast Address' : 'Tidak ada broadcast');
+
+    if (prefixNum === 32) {
+      set('res-range', data.first_host);
+      set('res-range-sub', 'Host route (/32)');
+    } else if (prefixNum === 31) {
+      set('res-range', `${data.first_host} – ${data.last_host}`);
+      set('res-range-sub', 'Point-to-point (RFC 3021)');
+    } else {
+      set('res-range', `${data.first_host} – ${data.last_host}`);
+      set('res-range-sub', `${fmt(data.usable_hosts)} alamat host tersedia`);
+    }
+
+    set('res-hosts', fmt(data.usable_hosts));
+    set('res-hosts-sub', 'Host efektif yang dapat digunakan');
+
+    // Tabel Detail Konfigurasi
+    set('d-mask', data.mask);
+    set('d-net', `${data.network} /${prefixNum}`);
+    set('d-bcast', data.broadcast !== null ? data.broadcast : 'None (RFC 3021 / 32)');
+    set('d-first', data.first_host);
+    set('d-last', data.last_host);
+    set('d-usable', `${fmt(data.usable_hosts)} host`);
+
+    // Representasi Biner 32-Bit
+    try {
+      const parsedIp = ip.split('.').map(Number);
+      if (parsedIp.length === 4 && parsedIp.every(n => n >= 0 && n <= 255)) {
+        set('bin-ip', intToBin(ipToInt(ip)));
+      } else {
+        set('bin-ip', intToBin(ipToInt(data.network)));
+      }
+    } catch (_) {
+      set('bin-ip', intToBin(ipToInt(data.network)));
+    }
+
+    const maskInt = ipToInt(data.mask);
+    const netInt = ipToInt(data.network);
+    set('bin-mask', intToBin(maskInt));
+    set('bin-net', intToBin(netInt));
+    set('bin-bcast', data.broadcast !== null ? intToBin(ipToInt(data.broadcast)) : 'None (tanpa broadcast)');
+
+    if (resultSec) {
+      resultSec.classList.remove('hidden');
+      resultSec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  } catch (err) {
+    if (errorBanner && errorText) {
+      errorText.textContent = 'Gagal menghubungi server API: ' + err.message;
+      errorBanner.classList.remove('hidden');
+    }
+    if (resultSec) resultSec.classList.add('hidden');
+  }
+}
+
 function handleSubnetCalc() {
   calculate();
 }
 
 function handleVlsmCalc() {
-  // To be connected to POST /api/vlsm
+  // Mode VLSM akan diimplementasikan pada issue terkait
 }
 
 // ── Keyboard shortcut: Enter to calculate ────
 document.addEventListener('keydown', e => {
-  if (e.key === 'Enter') calculate();
+  if (e.key === 'Enter') {
+    const modeSubnet = document.getElementById('mode-subnet');
+    if (modeSubnet && !modeSubnet.classList.contains('hidden')) {
+      calculate();
+    }
+  }
 });
-
-// ── Auto-format: jump to next octet on dot ───
-document.getElementById('ip').addEventListener('input', function () {
-  this.classList.remove('invalid');
-});
-document.getElementById('prefix').addEventListener('input', function () {
-  document.querySelector('.prefix-input-wrap').classList.remove('invalid');
-});
-
