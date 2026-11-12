@@ -211,6 +211,36 @@ function set(id, text) {
   if (el) el.textContent = text;
 }
 
+function switchMode(mode) {
+  const tabSubnet = document.getElementById('tab-subnet');
+  const tabVlsm = document.getElementById('tab-vlsm');
+  const modeSubnet = document.getElementById('mode-subnet');
+  const modeVlsm = document.getElementById('mode-vlsm');
+  const errorBanner = document.getElementById('error-banner');
+
+  if (errorBanner) errorBanner.classList.add('hidden');
+
+  if (mode === 'subnet') {
+    tabSubnet.classList.add('active');
+    tabVlsm.classList.remove('active');
+    modeSubnet.classList.remove('hidden');
+    modeVlsm.classList.add('hidden');
+  } else {
+    tabVlsm.classList.add('active');
+    tabSubnet.classList.remove('active');
+    modeVlsm.classList.remove('hidden');
+    modeSubnet.classList.add('hidden');
+  }
+}
+
+function handleSubnetCalc() {
+  calculate();
+}
+
+function handleVlsmCalc() {
+  // To be connected to POST /api/vlsm
+}
+
 // ── Keyboard shortcut: Enter to calculate ────
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter') calculate();
