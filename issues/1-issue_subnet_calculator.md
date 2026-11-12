@@ -56,3 +56,4 @@ issue -> branch -> test dulu -> implementasi -> commit -> pull request -> CI -> 
 6. **Pull Request:** Ajukan PR ke branch `main` dengan mencantumkan tautan ke issue terkait (`Fixes #<nomor>`).
 7. **CI:** Jalankan pipeline pengujian otomatis untuk memverifikasi lint, pytest, dan coverage.
 8. **Merge:** Penggabungan kode ke branch utama (`main`) setelah seluruh check CI sukses.
+

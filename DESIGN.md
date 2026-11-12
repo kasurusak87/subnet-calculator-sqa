@@ -105,3 +105,4 @@ Aplikasi menyediakan dua mode utama yang dapat dialihkan secara instan melalui s
 ### C. Responsivitas
 *   **Desktop (> 768px):** Grid 4 kolom untuk kartu metrik, tata letak input berdampingan.
 *   **Tablet & Mobile (< 768px):** Grid 2 kolom atau 1 kolom adaptif, tabel dilengkapi *overflow-x scroll* agar data subnet tetap terbaca utuh tanpa terpotong.
+
