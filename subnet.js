@@ -178,16 +178,114 @@ function handleSubnetCalc() {
   calculate();
 }
 
-function handleVlsmCalc() {
-  // Mode VLSM akan diimplementasikan pada issue terkait
+async function handleVlsmCalc() {
+  const netInput = document.getElementById('vlsm-network');
+  const hostsInput = document.getElementById('vlsm-hosts');
+  const errorBanner = document.getElementById('error-banner');
+  const errorText = document.getElementById('error-text');
+  const resultSec = document.getElementById('vlsm-result-section');
+  const tbody = document.getElementById('vlsm-table-body');
+
+  const network = netInput ? netInput.value.trim() : '';
+  const hostsRaw = hostsInput ? hostsInput.value.trim() : '';
+
+  // Reset UI
+  if (errorBanner) errorBanner.classList.add('hidden');
+  if (netInput) netInput.classList.remove('invalid');
+  if (hostsInput) hostsInput.classList.remove('invalid');
+
+  if (!network) {
+    if (errorBanner && errorText) {
+      errorText.textContent = "Alamat network induk (CIDR) wajib diisi.";
+      errorBanner.classList.remove('hidden');
+    }
+    return;
+  }
+
+  // Parse daftar kebutuhan host
+  const hostParts = hostsRaw.split(',').map(s => s.trim()).filter(Boolean);
+  if (hostParts.length === 0) {
+    if (errorBanner && errorText) {
+      errorText.textContent = "Daftar kebutuhan host tidak boleh kosong.";
+      errorBanner.classList.remove('hidden');
+    }
+    return;
+  }
+
+  const kebutuhan_host = [];
+  for (const p of hostParts) {
+    const num = Number(p);
+    if (!/^\d+$/.test(p) || isNaN(num) || num < 1) {
+      if (errorBanner && errorText) {
+        errorText.textContent = `Nilai kebutuhan '${p}' tidak valid. Harus berupa bilangan bulat >= 1.`;
+        errorBanner.classList.remove('hidden');
+      }
+      return;
+    }
+    kebutuhan_host.push(num);
+  }
+
+  try {
+    const response = await fetch('/api/vlsm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ network, kebutuhan_host }),
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      if (errorBanner && errorText) {
+        errorText.textContent = data.detail || 'Terjadi kesalahan pada alokasi VLSM.';
+        errorBanner.classList.remove('hidden');
+      }
+      if (resultSec) resultSec.classList.add('hidden');
+      return;
+    }
+
+    // Render tabel alokasi VLSM
+    if (tbody) {
+      tbody.innerHTML = '';
+      data.forEach((sub, idx) => {
+        const tr = document.createElement('tr');
+        const bcastDisplay = sub.broadcast !== null ? sub.broadcast : 'None (/31)';
+        const rangeDisplay = `${sub.first_host} – ${sub.last_host}`;
+
+        tr.innerHTML = `
+          <td><strong>#${idx + 1}</strong></td>
+          <td><span style="background:#eef2ff;color:#4f46e5;padding:2px 8px;border-radius:6px;font-weight:600;">${fmt(sub.kebutuhan)} host</span></td>
+          <td><code>${sub.network_cidr}</code></td>
+          <td><code>${sub.mask}</code></td>
+          <td><code>${sub.network}</code></td>
+          <td><code>${rangeDisplay}</code></td>
+          <td><code>${bcastDisplay}</code></td>
+          <td><strong>${fmt(sub.usable_hosts)}</strong></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    if (resultSec) {
+      resultSec.classList.remove('hidden');
+      resultSec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  } catch (err) {
+    if (errorBanner && errorText) {
+      errorText.textContent = 'Gagal menghubungi server API: ' + err.message;
+      errorBanner.classList.remove('hidden');
+    }
+    if (resultSec) resultSec.classList.add('hidden');
+  }
 }
 
 // ── Keyboard shortcut: Enter to calculate ────
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
     const modeSubnet = document.getElementById('mode-subnet');
+    const modeVlsm = document.getElementById('mode-vlsm');
     if (modeSubnet && !modeSubnet.classList.contains('hidden')) {
       calculate();
+    } else if (modeVlsm && !modeVlsm.classList.contains('hidden')) {
+      handleVlsmCalc();
     }
   }
 });

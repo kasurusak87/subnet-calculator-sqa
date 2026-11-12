@@ -131,7 +131,64 @@ def alokasi_vlsm(network_cidr: str, kebutuhan_host: list[int]) -> list[dict]:
     Mengalokasikan blok subnet VLSM dari network_cidr induk
     berdasarkan kebutuhan_host yang diurutkan descending.
     """
-    raise NotImplementedError
+    if not isinstance(network_cidr, str) or "/" not in network_cidr:
+        raise ValueError("Format network_cidr tidak valid. Harus 'ip/prefix' (contoh: '192.168.1.0/24').")
+
+    parts = network_cidr.split("/")
+    if len(parts) != 2:
+        raise ValueError("Format network_cidr tidak valid. Harus 'ip/prefix'.")
+
+    ip_str, prefix_str = parts[0], parts[1]
+    octets = validate_ip(ip_str)
+
+    if not prefix_str.isdigit():
+        raise ValueError("Prefix CIDR harus berupa bilangan bulat.")
+    parent_prefix = validate_prefix(int(prefix_str))
+
+    ip_int = (octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]
+    mask_int = 0 if parent_prefix == 0 else ((0xFFFFFFFF << (32 - parent_prefix)) & 0xFFFFFFFF)
+
+    # Validasi bahwa IP induk memang network address yang valid
+    if (ip_int & mask_int) != ip_int:
+        raise ValueError(f"'{ip_str}' bukan network address yang valid untuk prefix /{parent_prefix}.")
+
+    # Validasi daftar kebutuhan host
+    if not isinstance(kebutuhan_host, list) or len(kebutuhan_host) == 0:
+        raise ValueError("Daftar kebutuhan host tidak boleh kosong.")
+
+    for k in kebutuhan_host:
+        if not isinstance(k, int) or isinstance(k, bool) or k < 1:
+            raise ValueError("Setiap nilai kebutuhan host harus berupa bilangan bulat >= 1.")
+
+    # Urutkan kebutuhan dari terbesar ke terkecil
+    sorted_kebutuhan = sorted(kebutuhan_host, reverse=True)
+
+    parent_net_int = ip_int
+    parent_block_size = 1 << (32 - parent_prefix)
+    current_ip_int = parent_net_int
+    alokasi_list = []
+
+    for req in sorted_kebutuhan:
+        # Ukuran blok minimal 4 (/30) atau pangkat 2 terkecil >= req + 2
+        needed = req + 2
+        block_size = max(4, 1 << (needed - 1).bit_length())
+        host_bits = block_size.bit_length() - 1
+        sub_prefix = 32 - host_bits
+
+        # Periksa apakah kapasitas blok induk mencukupi
+        if (current_ip_int + block_size) > (parent_net_int + parent_block_size):
+            raise ValueError("Kapasitas blok subnet induk tidak mencukupi untuk seluruh kebutuhan host.")
+
+        subnet_info = hitung_subnet(int_to_ip(current_ip_int), sub_prefix)
+        alokasi_list.append({
+            "kebutuhan": req,
+            "network_cidr": f"{int_to_ip(current_ip_int)}/{sub_prefix}",
+            **subnet_info,
+        })
+
+        current_ip_int += block_size
+
+    return alokasi_list
 
 
 # ── API Endpoints ─────────────────────────────────────────────────────────────
@@ -171,5 +228,13 @@ def api_subnet(ip: str = Query(...), prefix: int = Query(...)):
 @app.post("/api/vlsm")
 def api_vlsm(payload: dict):
     """Endpoint alokasi VLSM."""
-    raise NotImplementedError
-
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Payload harus berupa objek JSON.")
+    network = payload.get("network")
+    kebutuhan_host = payload.get("kebutuhan_host")
+    if not network or kebutuhan_host is None:
+        raise HTTPException(status_code=400, detail="Field 'network' dan 'kebutuhan_host' wajib disertakan.")
+    try:
+        return alokasi_vlsm(network, kebutuhan_host)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
