@@ -126,6 +126,14 @@ def hitung_subnet(ip: str, prefix: int) -> dict:
     }
 
 
+def alokasi_vlsm(network_cidr: str, kebutuhan_host: list[int]) -> list[dict]:
+    """
+    Mengalokasikan blok subnet VLSM dari network_cidr induk
+    berdasarkan kebutuhan_host yang diurutkan descending.
+    """
+    raise NotImplementedError
+
+
 # ── API Endpoints ─────────────────────────────────────────────────────────────
 @app.get("/")
 def get_index():
@@ -158,3 +166,10 @@ def api_subnet(ip: str = Query(...), prefix: int = Query(...)):
         return hitung_subnet(ip, prefix)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/vlsm")
+def api_vlsm(payload: dict):
+    """Endpoint alokasi VLSM."""
+    raise NotImplementedError
+
