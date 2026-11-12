@@ -1,6 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
-from main import app, hitung_subnet
+from main import app, hitung_subnet, alokasi_vlsm
 
 client = TestClient(app)
 
@@ -137,3 +137,110 @@ def test_api_subnet_invalid(ip, prefix):
     assert response.status_code == 400
     data = response.json()
     assert "detail" in data
+
+
+# ==============================================================================
+# 6. Unit Test: alokasi_vlsm (Kasus Valid)
+# ==============================================================================
+def test_alokasi_vlsm_normal():
+    network_cidr = "192.168.1.0/24"
+    kebutuhan = [100, 50, 20, 2]
+    hasil = alokasi_vlsm(network_cidr, kebutuhan)
+
+    assert len(hasil) == 4
+
+    # Subnet 1: 100 host -> /25 (192.168.1.0)
+    assert hasil[0]["kebutuhan"] == 100
+    assert hasil[0]["network_cidr"] == "192.168.1.0/25"
+    assert hasil[0]["network"] == "192.168.1.0"
+    assert hasil[0]["mask"] == "255.255.255.128"
+    assert hasil[0]["broadcast"] == "192.168.1.127"
+    assert hasil[0]["first_host"] == "192.168.1.1"
+    assert hasil[0]["last_host"] == "192.168.1.126"
+    assert hasil[0]["usable_hosts"] == 126
+
+    # Subnet 2: 50 host -> /26 (192.168.1.128)
+    assert hasil[1]["kebutuhan"] == 50
+    assert hasil[1]["network_cidr"] == "192.168.1.128/26"
+    assert hasil[1]["network"] == "192.168.1.128"
+    assert hasil[1]["mask"] == "255.255.255.192"
+    assert hasil[1]["broadcast"] == "192.168.1.191"
+    assert hasil[1]["first_host"] == "192.168.1.129"
+    assert hasil[1]["last_host"] == "192.168.1.190"
+    assert hasil[1]["usable_hosts"] == 62
+
+    # Subnet 3: 20 host -> /27 (192.168.1.192)
+    assert hasil[2]["kebutuhan"] == 20
+    assert hasil[2]["network_cidr"] == "192.168.1.192/27"
+    assert hasil[2]["network"] == "192.168.1.192"
+    assert hasil[2]["mask"] == "255.255.255.224"
+    assert hasil[2]["broadcast"] == "192.168.1.223"
+    assert hasil[2]["first_host"] == "192.168.1.193"
+    assert hasil[2]["last_host"] == "192.168.1.222"
+    assert hasil[2]["usable_hosts"] == 30
+
+    # Subnet 4: 2 host -> /30 (192.168.1.224)
+    assert hasil[3]["kebutuhan"] == 2
+    assert hasil[3]["network_cidr"] == "192.168.1.224/30"
+    assert hasil[3]["network"] == "192.168.1.224"
+    assert hasil[3]["mask"] == "255.255.255.252"
+    assert hasil[3]["broadcast"] == "192.168.1.227"
+    assert hasil[3]["first_host"] == "192.168.1.225"
+    assert hasil[3]["last_host"] == "192.168.1.226"
+    assert hasil[3]["usable_hosts"] == 2
+
+
+# ==============================================================================
+# 7. Unit Test: alokasi_vlsm (Kasus Tidak Valid)
+# ==============================================================================
+@pytest.mark.parametrize(
+    "network_cidr,kebutuhan",
+    [
+        ("192.168.1.0/24", [200, 100]),   # Kapasitas kurang (SPEC Test 10)
+        ("192.168.1.5/24", [10, 5]),      # IP bukan network address
+        ("192.168.1.0/24", []),           # Kebutuhan kosong
+        ("192.168.1.0/24", [10, 0]),      # Nilai kebutuhan < 1
+        ("192.168.1.0/24", [-5]),         # Nilai kebutuhan negatif
+        ("invalid_cidr", [10]),           # Format CIDR tidak valid
+    ],
+)
+def test_alokasi_vlsm_invalid(network_cidr, kebutuhan):
+    with pytest.raises(ValueError):
+        alokasi_vlsm(network_cidr, kebutuhan)
+
+
+# ==============================================================================
+# 8. Integration Test: API Endpoint POST /api/vlsm (Sukses 200)
+# ==============================================================================
+def test_api_vlsm_valid():
+    payload = {
+        "network": "192.168.1.0/24",
+        "kebutuhan_host": [100, 50, 20, 2],
+    }
+    response = client.post("/api/vlsm", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) == 4
+    assert data[0]["network_cidr"] == "192.168.1.0/25"
+    assert data[3]["network_cidr"] == "192.168.1.224/30"
+
+
+# ==============================================================================
+# 9. Integration Test: API Endpoint POST /api/vlsm (Invalid 400 Bad Request)
+# ==============================================================================
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"network": "192.168.1.0/24", "kebutuhan_host": [200, 100]},
+        {"network": "192.168.1.5/24", "kebutuhan_host": [10]},
+        {"network": "192.168.1.0/24", "kebutuhan_host": []},
+        {"network": "192.168.1.0/24", "kebutuhan_host": [0]},
+    ],
+)
+def test_api_vlsm_invalid(payload):
+    response = client.post("/api/vlsm", json=payload)
+    assert response.status_code == 400
+    data = response.json()
+    assert "detail" in data
+
