@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Subnet Calculator</title>
+  <title>Subnet & VLSM Calculator</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -11,122 +11,186 @@
     <header>
       <div class="logo">
         <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-          <rect width="36" height="36" rx="10" fill="#6366f1"/>
+          <rect width="36" height="36" rx="10" fill="#4f46e5"/>
           <path d="M8 18h20M18 8v20M8 8l20 20M28 8L8 28" stroke="white" stroke-width="2" stroke-linecap="round"/>
         </svg>
       </div>
       <div>
-        <h1>Subnet Calculator</h1>
-        <p class="subtitle">IPv4 Network Calculator</p>
+        <h1>Subnet & VLSM Calculator</h1>
+        <p class="subtitle">IPv4 Engineering & Education Tool</p>
       </div>
     </header>
 
-    <div class="card input-card">
-      <h2>Input Jaringan</h2>
-      <div class="input-row">
-        <div class="field">
-          <label for="ip">Alamat IP</label>
-          <input type="text" id="ip" placeholder="Contoh: 192.168.1.0" autocomplete="off" spellcheck="false" />
-          <span class="hint">Format: xxx.xxx.xxx.xxx</span>
-        </div>
-        <div class="field field-prefix">
-          <label for="prefix">Prefix / CIDR</label>
-          <div class="prefix-input-wrap">
-            <span class="slash">/</span>
-            <input type="number" id="prefix" min="0" max="32" placeholder="24" />
-          </div>
-          <span class="hint">Rentang: 0 – 32</span>
-        </div>
-      </div>
-      <div id="error-msg" class="error-msg hidden"></div>
-      <button id="calc-btn" onclick="calculate()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-        Hitung
+    <!-- Navigation Tabs -->
+    <div class="tab-nav">
+      <button id="tab-subnet" class="tab-btn active" onclick="switchMode('subnet')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        Kalkulator Subnet
+      </button>
+      <button id="tab-vlsm" class="tab-btn" onclick="switchMode('vlsm')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        Alokasi VLSM
       </button>
     </div>
 
-    <div id="result-section" class="hidden">
-      <div class="result-grid">
-        <div class="card result-card">
-          <div class="result-icon" style="background:#e0e7ff;">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-          </div>
-          <div class="result-label">Network Address</div>
-          <div class="result-value" id="res-network">—</div>
-          <div class="result-sub" id="res-cidr">—</div>
-        </div>
+    <!-- Error Banner Global -->
+    <div id="error-banner" class="error-banner hidden">
+      <span class="error-icon">⚠</span>
+      <span id="error-text" class="error-text"></span>
+    </div>
 
-        <div class="card result-card">
-          <div class="result-icon" style="background:#fce7f3;">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ec4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+    <!-- Mode 1: Subnet Calculator -->
+    <div id="mode-subnet" class="mode-content">
+      <div class="card input-card">
+        <h2>Input Subnet IPv4</h2>
+        <div class="input-row">
+          <div class="field">
+            <label for="ip">Alamat IP</label>
+            <input type="text" id="ip" placeholder="Contoh: 172.16.5.130" autocomplete="off" spellcheck="false" />
+            <span class="hint">Format: 4 oktet desimal (contoh: 192.168.1.0)</span>
           </div>
-          <div class="result-label">Broadcast Address</div>
-          <div class="result-value" id="res-broadcast">—</div>
-          <div class="result-sub" id="res-broadcast-bin" style="font-size:0.72rem;word-break:break-all;"></div>
-        </div>
-
-        <div class="card result-card">
-          <div class="result-icon" style="background:#d1fae5;">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <div class="field field-prefix">
+            <label for="prefix">Prefix / CIDR</label>
+            <div class="prefix-input-wrap">
+              <span class="slash">/</span>
+              <input type="number" id="prefix" min="0" max="32" placeholder="25" />
+            </div>
+            <span class="hint">Rentang: 0 – 32</span>
           </div>
-          <div class="result-label">Range Host</div>
-          <div class="result-value range-value" id="res-range">—</div>
-          <div class="result-sub" id="res-range-sub"></div>
         </div>
-
-        <div class="card result-card">
-          <div class="result-icon" style="background:#fef3c7;">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-          </div>
-          <div class="result-label">Jumlah Host</div>
-          <div class="result-value" id="res-hosts">—</div>
-          <div class="result-sub" id="res-hosts-sub"></div>
-        </div>
+        <button id="calc-subnet-btn" class="primary-btn" onclick="handleSubnetCalc()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          Hitung Subnet
+        </button>
       </div>
 
-      <div class="card detail-card">
-        <h2>Detail Subnet</h2>
-        <table class="detail-table">
-          <tbody>
-            <tr><td>Subnet Mask</td><td id="d-mask">—</td></tr>
-            <tr><td>Wildcard Mask</td><td id="d-wildcard">—</td></tr>
-            <tr><td>IP Address (Desimal)</td><td id="d-ip-dec">—</td></tr>
-            <tr><td>Network Address</td><td id="d-net">—</td></tr>
-            <tr><td>Broadcast Address</td><td id="d-bcast">—</td></tr>
-            <tr><td>Host Pertama</td><td id="d-first">—</td></tr>
-            <tr><td>Host Terakhir</td><td id="d-last">—</td></tr>
-            <tr><td>Jumlah Host yang Bisa Dipakai</td><td id="d-usable">—</td></tr>
-            <tr><td>Kelas IP</td><td id="d-class">—</td></tr>
-            <tr><td>Tipe Jaringan</td><td id="d-type">—</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <div id="subnet-result-section" class="hidden">
+        <div class="result-grid">
+          <div class="card result-card">
+            <div class="result-icon" style="background:#e0e7ff;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            </div>
+            <div class="result-label">Network Address</div>
+            <div class="result-value" id="res-network">—</div>
+            <div class="result-sub" id="res-cidr">—</div>
+          </div>
 
-      <div class="card binary-card">
-        <h2>Representasi Biner</h2>
-        <div class="binary-grid">
-          <div class="binary-row">
-            <span class="binary-label">IP Address</span>
-            <span class="binary-val" id="bin-ip">—</span>
+          <div class="card result-card">
+            <div class="result-icon" style="background:#fce7f3;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ec4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+            </div>
+            <div class="result-label">Broadcast Address</div>
+            <div class="result-value" id="res-broadcast">—</div>
+            <div class="result-sub" id="res-broadcast-sub"></div>
           </div>
-          <div class="binary-row">
-            <span class="binary-label">Subnet Mask</span>
-            <span class="binary-val" id="bin-mask">—</span>
+
+          <div class="card result-card">
+            <div class="result-icon" style="background:#d1fae5;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div class="result-label">Range Host Usable</div>
+            <div class="result-value range-value" id="res-range">—</div>
+            <div class="result-sub" id="res-range-sub"></div>
           </div>
-          <div class="binary-row highlight-net">
-            <span class="binary-label">Network Addr</span>
-            <span class="binary-val" id="bin-net">—</span>
+
+          <div class="card result-card">
+            <div class="result-icon" style="background:#fef3c7;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+            </div>
+            <div class="result-label">Jumlah Host Usable</div>
+            <div class="result-value" id="res-hosts">—</div>
+            <div class="result-sub" id="res-hosts-sub"></div>
           </div>
-          <div class="binary-row highlight-bcast">
-            <span class="binary-label">Broadcast Addr</span>
-            <span class="binary-val" id="bin-bcast">—</span>
+        </div>
+
+        <div class="card detail-card">
+          <h2>Detail Konfigurasi Subnet</h2>
+          <table class="detail-table">
+            <tbody>
+              <tr><td>Subnet Mask</td><td id="d-mask">—</td></tr>
+              <tr><td>Network Address</td><td id="d-net">—</td></tr>
+              <tr><td>Broadcast Address</td><td id="d-bcast">—</td></tr>
+              <tr><td>Host Pertama (First Host)</td><td id="d-first">—</td></tr>
+              <tr><td>Host Terakhir (Last Host)</td><td id="d-last">—</td></tr>
+              <tr><td>Jumlah Host yang Dapat Digunakan</td><td id="d-usable">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card binary-card">
+          <h2>Representasi Biner 32-Bit</h2>
+          <div class="binary-grid">
+            <div class="binary-row">
+              <span class="binary-label">IP Address</span>
+              <span class="binary-val" id="bin-ip">—</span>
+            </div>
+            <div class="binary-row">
+              <span class="binary-label">Subnet Mask</span>
+              <span class="binary-val" id="bin-mask">—</span>
+            </div>
+            <div class="binary-row highlight-net">
+              <span class="binary-label">Network Address</span>
+              <span class="binary-val" id="bin-net">—</span>
+            </div>
+            <div class="binary-row highlight-bcast">
+              <span class="binary-label">Broadcast Address</span>
+              <span class="binary-val" id="bin-bcast">—</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- Mode 2: VLSM Calculator -->
+    <div id="mode-vlsm" class="mode-content hidden">
+      <div class="card input-card">
+        <h2>Input Alokasi VLSM</h2>
+        <div class="input-row">
+          <div class="field">
+            <label for="vlsm-network">Network Induk (CIDR)</label>
+            <input type="text" id="vlsm-network" placeholder="Contoh: 192.168.1.0/24" autocomplete="off" spellcheck="false" />
+            <span class="hint">Format: Alamat IP jaringan beserta prefix CIDR</span>
+          </div>
+          <div class="field">
+            <label for="vlsm-hosts">Kebutuhan Host (Pisahkan koma)</label>
+            <input type="text" id="vlsm-hosts" placeholder="Contoh: 100, 50, 20, 2" autocomplete="off" />
+            <span class="hint">Akan otomatis diurutkan dari kebutuhan terbesar</span>
+          </div>
+        </div>
+        <button id="calc-vlsm-btn" class="primary-btn" onclick="handleVlsmCalc()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          Alokasikan VLSM
+        </button>
+      </div>
+
+      <div id="vlsm-result-section" class="hidden">
+        <div class="card detail-card">
+          <h2>Tabel Alokasi Subnet VLSM</h2>
+          <div class="table-responsive">
+            <table class="detail-table vlsm-table">
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th>Kebutuhan</th>
+                  <th>Subnet CIDR</th>
+                  <th>Subnet Mask</th>
+                  <th>Network Address</th>
+                  <th>Host Range</th>
+                  <th>Broadcast</th>
+                  <th>Usable Hosts</th>
+                </tr>
+              </thead>
+              <tbody id="vlsm-table-body">
+                <!-- Diisi secara dinamis via JavaScript/API -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script src="subnet.js"></script>
 </body>
 </html>
-
