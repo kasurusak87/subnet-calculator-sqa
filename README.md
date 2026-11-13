@@ -51,3 +51,17 @@ Untuk menghentikan dan menghapus container:
 ```bash
 docker rm -f subnet-app
 ```
+
+## Deploy
+
+Aplikasi dideploy di Vercel pada URL produksi:
+- **URL Produksi:** https://subnet-calculator-sqa.vercel.app
+
+### Menjalankan Smoke Test Produksi
+
+Jalankan skrip smoke test untuk memvalidasi deployment di lingkungan produksi:
+
+```bash
+uv run python scripts/smoke_test.py https://subnet-calculator-sqa.vercel.app
+```
+
